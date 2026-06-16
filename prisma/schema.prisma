@@ -1,0 +1,125 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model JobSite {
+  id            String       @id @default(cuid())
+  name          String
+  url           String
+  status        String       @default("active") // active, paused, error
+  lastCrawledAt DateTime?
+  errorMessage  String?
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+  jobPostings   JobPosting[]
+  crawlLogs     CrawlLog[]
+}
+
+model CrawlTemplate {
+  id        String @id @default(cuid())
+  domain    String @unique
+  name      String
+  selectors String // JSON: { listContainer, title, company, salary, location, experience, education, link, nextPage }
+  enabled   Boolean @default(true)
+  createdAt DateTime @default(now())
+}
+
+model JobPosting {
+  id           String        @id @default(cuid())
+  siteId       String
+  externalId   String
+  title        String
+  company      String?
+  salary       String?
+  location     String?
+  experience   String?
+  education    String?
+  description  String
+  url          String
+  publishedAt  DateTime?
+  firstSeenAt  DateTime      @default(now())
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  site         JobSite       @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  matchResults MatchResult[]
+
+  @@unique([siteId, externalId])
+}
+
+model MatchResult {
+  id            String            @id @default(cuid())
+  jobPostingId  String
+  userId        String            @default("default")
+  score         Int
+  matchReason   String
+  isNotified    Boolean           @default(false)
+  isRead        Boolean           @default(false)
+  isFavorited   Boolean           @default(false)
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+
+  jobPosting          JobPosting        @relation(fields: [jobPostingId], references: [id], onDelete: Cascade)
+  notificationLogs    NotificationLog[]
+}
+
+model NotificationLog {
+  id            String     @id @default(cuid())
+  matchResultId String
+  channel       String     // browser, email, webhook
+  status        String     // sent, failed
+  errorMessage  String?
+  sentAt        DateTime   @default(now())
+
+  matchResult MatchResult @relation(fields: [matchResultId], references: [id], onDelete: Cascade)
+}
+
+model UserSettings {
+  id                  String  @id @default("default")
+  monitorFrequency    Int     @default(30) // minutes
+  minMatchScore       Int     @default(60)
+  notifyBrowser       Boolean @default(true)
+  notifyEmail         Boolean @default(false)
+  emailAddress        String?
+  emailPassword       String?
+  emailHost           String?
+  emailPort           Int?
+  notifyWebhook       Boolean @default(false)
+  webhookUrl          String?
+  webhookType         String? // wechat, dingtalk, feishu
+  notifyWorkHoursOnly Boolean @default(false)
+  notifyStartHour     Int     @default(9)
+  notifyEndHour       Int     @default(18)
+  dataRetentionDays   Int     @default(30)
+  openaiApiKey        String?
+  openaiBaseUrl       String?
+  aiProvider          String?  @default("openai") // openai, deepseek, custom
+  aiModel             String?  @default("gpt-4o-mini")
+  jobRequirements     String? // 用户输入的岗位需求描述
+  salaryMin           Int?
+  salaryMax           Int?
+  locationCities      String? // JSON array
+  experienceLevel     String?
+  educationLevel      String?
+  bonusKeywords       String? // JSON array
+  excludeKeywords     String? // JSON array
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+}
+
+model CrawlLog {
+  id        String   @id @default(cuid())
+  siteId    String
+  status    String   // success, partial, failed
+  jobsFound Int      @default(0)
+  jobsNew   Int      @default(0)
+  error     String?
+  createdAt DateTime @default(now())
+
+  site JobSite @relation(fields: [siteId], references: [id], onDelete: Cascade)
+}
