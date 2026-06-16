@@ -5,8 +5,22 @@
  */
 export async function register() {
   if (process.env.NEXT_RUNTIME === "nodejs") {
-    // Check if we're on Vercel (serverless — no long-running processes)
     const isVercel = !!process.env.VERCEL;
+
+    // On Vercel, push schema then seed
+    if (isVercel) {
+      try {
+        console.log("[Instrumentation] Vercel detected — pushing schema...");
+        const { execSync } = await import("node:child_process");
+        execSync("npx prisma db push --schema=prisma/schema.prisma --accept-data-loss", {
+          stdio: "pipe",
+          timeout: 30000,
+        });
+        console.log("[Instrumentation] Schema pushed successfully");
+      } catch (e) {
+        console.log("[Instrumentation] Schema push skipped:", (e as Error).message);
+      }
+    }
 
     const { default: prisma } = await import("@/lib/prisma");
 
